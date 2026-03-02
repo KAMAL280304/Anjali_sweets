@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# Environment Variables
+.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Google Credentials
+credentials.json
+
+# Logs
+*.log
+ai-front-office-483115-0cd873707eb4.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+ngrok.exe
+ngrok.log
+
+#fmfkmkmkmmm
