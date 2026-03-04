@@ -38,5 +38,4 @@ Thumbs.db
 # Project specific
 ngrok.exe
 ngrok.log
-
-#fmfkmkmkmmm
+*.json
