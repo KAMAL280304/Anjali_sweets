@@ -19,7 +19,7 @@ class Config:
     WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "my_verify_token_123")
 
     # Google Sheets Configuration
-    GOOGLE_CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
+    GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
     GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Anjali_Sweets")
 
     # Application Configuration
@@ -53,8 +53,9 @@ class Config:
             ("WHATSAPP_ACCESS_TOKEN", cls.WHATSAPP_ACCESS_TOKEN),
             ("WHATSAPP_PHONE_NUMBER_ID", cls.WHATSAPP_PHONE_NUMBER_ID),
             ("WEBHOOK_VERIFY_TOKEN", cls.WEBHOOK_VERIFY_TOKEN),
-            ("GOOGLE_CREDENTIALS_FILE", cls.GOOGLE_CREDENTIALS_FILE),
+            ("GOOGLE_CREDENTIALS", cls.GOOGLE_CREDENTIALS),
         ]
+
 
         missing = []
         for name, value in required:
