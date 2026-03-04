@@ -10,8 +10,9 @@ v2 - Architecture Fix:
   - Catalog/menu intent handler
   - AI used only for intent/language extraction
 """
-from flask import Flask, request, render_template
+
 import logging
+from minimal_server import app
 from datetime import datetime
 from typing import Optional, Dict
 
@@ -47,8 +48,6 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
-
-app = Flask(__name__)
 
 # Register admin blueprint
 from admin_routes import admin_bp
