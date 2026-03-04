@@ -8,7 +8,8 @@ from datetime import datetime
 import uuid
 import logging
 from typing import Optional, List, Dict, Tuple
-
+import os
+import json
 from config import Config
 
 # Setup logging
@@ -27,9 +28,11 @@ class SheetsManager:
                 "https://www.googleapis.com/auth/drive",
             ]
             
-            creds = Credentials.from_service_account_file(
-                Config.GOOGLE_CREDENTIALS_FILE, 
-                scopes=scopes
+            creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
+
+            creds = Credentials.from_service_account_info(
+            creds_dict,
+            scopes=scopes
             )
             self.client = gspread.authorize(creds)
             self.sheet = self.client.open(Config.GOOGLE_SHEET_NAME)
