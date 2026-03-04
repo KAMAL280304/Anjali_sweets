@@ -12,8 +12,8 @@ v2 - Architecture Fix:
 """
 
 import logging
-from minimal_server import app
 from flask import request, render_template
+from minimal_server import app
 from datetime import datetime
 from typing import Optional, Dict
 
