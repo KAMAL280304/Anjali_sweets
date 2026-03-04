@@ -1,9 +1,12 @@
 from flask import Flask
+import webhook
 
 app = Flask(__name__)
-
+@app.route("/webhook-test")
+def webhook_test():
+    return "webhook route works"
 # Import routes AFTER creating app
-import webhook
+
 
 @app.route("/ping")
 def ping():
