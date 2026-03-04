@@ -13,7 +13,7 @@ v2 - Architecture Fix:
 
 import logging
 from flask import request, render_template
-from minimal_server import app
+
 from datetime import datetime
 from typing import Optional, Dict
 
@@ -335,35 +335,35 @@ def detect_multiple_products(text: str, products: list) -> list:
 
 # ==================== ADMIN DASHBOARD ====================
 
-@app.route("/admin")
-def admin_dashboard():
-    """Serve the admin dashboard"""
-    return render_template("admin_dashboard.html")
 
 
 # ==================== WEBHOOK ENDPOINTS ====================
-
-@app.route("/webhook", methods=["GET", "POST"])
-def webhook():
-    """
-    Main webhook endpoint for WhatsApp Cloud API
-    
-    GET: Verification (Meta requirement)
-    POST: Incoming messages
-    """
-    
-    # ========== VERIFICATION (GET) ==========
-    if request.method == "GET":
-        mode = request.args.get("hub.mode")
-        token = request.args.get("hub.verify_token")
-        challenge = request.args.get("hub.challenge")
+def register_routes(app):
+    @app.route("/admin")
+    def admin_dashboard():
+        """Serve the admin dashboard"""
+        return render_template("admin_dashboard.html")
+    @app.route("/webhook", methods=["GET", "POST"])
+    def webhook():
+        """
+        Main webhook endpoint for WhatsApp Cloud API
         
-        if mode == "subscribe" and token == Config.WEBHOOK_VERIFY_TOKEN:
-            logger.info("✅ Webhook verified successfully")
-            return challenge, 200
-        else:
-            logger.warning("❌ Webhook verification failed")
-            return "Forbidden", 403
+        GET: Verification (Meta requirement)
+        POST: Incoming messages
+        """
+        
+        # ========== VERIFICATION (GET) ==========
+        if request.method == "GET":
+            mode = request.args.get("hub.mode")
+            token = request.args.get("hub.verify_token")
+            challenge = request.args.get("hub.challenge")
+            
+            if mode == "subscribe" and token == Config.WEBHOOK_VERIFY_TOKEN:
+                logger.info("✅ Webhook verified successfully")
+                return challenge, 200
+            else:
+                logger.warning("❌ Webhook verification failed")
+                return "Forbidden", 403
     
     # ========== INCOMING MESSAGE (POST) ==========
     data = request.get_json()
