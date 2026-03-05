@@ -3,7 +3,7 @@ Google Sheets Manager for AI Front Office Manager
 Handles all Google Sheets operations with caching and error handling
 """
 import gspread
-from google.oauth2.service_account import Credentials
+from google.oauth2 import service_account
 from datetime import datetime
 import uuid
 import logging
@@ -30,7 +30,7 @@ class SheetsManager:
             
             creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
 
-            creds = Credentials.from_service_account_info(
+            creds = service_account.Credentials.from_service_account_info(
             creds_dict,
             scopes=scopes
             )
