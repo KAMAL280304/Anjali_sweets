@@ -22,6 +22,7 @@ from sheets_manager import get_sheets_manager
 from send_whatsapp import send_whatsapp_message
 from ai_handler import extract_structured_data, detect_confirmation_intent
 from notification_handler import notify_owner
+
 from utils import (
     extract_quantity,
     resolve_product,
@@ -51,7 +52,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Register admin blueprint
-from admin_routes import admin_bp
 app.register_blueprint(admin_bp)
 
 # Initialize Google Sheets Manager
@@ -339,6 +339,8 @@ def detect_multiple_products(text: str, products: list) -> list:
 
 # ==================== WEBHOOK ENDPOINTS ====================
 def register_routes(app):
+    from admin_routes import admin_bp
+    app.register_blueprint(admin_bp)
     @app.route("/admin")
     def admin_dashboard():
         """Serve the admin dashboard"""
