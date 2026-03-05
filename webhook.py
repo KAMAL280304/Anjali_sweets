@@ -52,7 +52,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Register admin blueprint
-app.register_blueprint(admin_bp)
 
 # Initialize Google Sheets Manager
 sheets = get_sheets_manager()
