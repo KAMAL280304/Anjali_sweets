@@ -731,10 +731,6 @@ def register_routes(app):
             logger.error(f"❌ Error processing webhook: {e}", exc_info=True)
             return "EVENT_RECEIVED", 200
 
-    @app.route("/ping", methods=["GET"])
-    def ping():
-        return "pong", 200
-
 
     @app.route("/health", methods=["GET"])
     def health_check():
