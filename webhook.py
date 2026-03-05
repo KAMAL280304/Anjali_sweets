@@ -368,369 +368,369 @@ def register_routes(app):
                 return "Forbidden", 403
     
     # ========== INCOMING MESSAGE (POST) ==========
-    data = request.get_json()
-    logger.debug(f"📥 Webhook data: {data}")
+        data = request.get_json()
+        logger.debug(f"📥 Webhook data: {data}")
     
-    try:
+        try:
         # Parse WhatsApp webhook payload
-        entry = data.get("entry", [])
-        if not entry:
-            return "EVENT_RECEIVED", 200
+            entry = data.get("entry", [])
+            if not entry:
+                return "EVENT_RECEIVED", 200
         
-        changes = entry[0].get("changes", [])
-        if not changes:
-            return "EVENT_RECEIVED", 200
+            changes = entry[0].get("changes", [])
+            if not changes:
+                return "EVENT_RECEIVED", 200
         
-        value = changes[0].get("value", {})
+            value = changes[0].get("value", {})
         
-        if "messages" not in value:
-            return "EVENT_RECEIVED", 200
+            if "messages" not in value:
+                return "EVENT_RECEIVED", 200
         
-        messages = value.get("messages", [])
-        if not messages:
-            return "EVENT_RECEIVED", 200
+            messages = value.get("messages", [])
+            if not messages:
+                return "EVENT_RECEIVED", 200
         
         # Extract message details
-        message = messages[0]
-        message_id = message.get("id")
-        phone = message.get("from")
+            message = messages[0]
+            message_id = message.get("id")
+            phone = message.get("from")
         
         # ✅ MESSAGE DEDUPLICATION
-        import time
-        import hashlib
-        current_time = time.time()
-        
-        dedup_key = message_id if message_id else hashlib.md5(
-            f"{phone}:{int(current_time / 2)}".encode()
-        ).hexdigest()
-        
-        # Clean old entries
-        expired = [k for k, ts in processed_messages.items() if current_time - ts > MESSAGE_CACHE_DURATION]
-        for k in expired:
-            del processed_messages[k]
-        
-        if dedup_key in processed_messages:
-            logger.warning(f"⏭️ DUPLICATE message {dedup_key} - skipping")
-            return "EVENT_RECEIVED", 200
-        
-        processed_messages[dedup_key] = current_time
-        
-        # Only handle text messages
-        if "text" not in message:
-            send_whatsapp_message(phone, "Please send text messages for now. Image support coming soon!")
-            return "EVENT_RECEIVED", 200
-        
-        text = message["text"]["body"].strip()
-        logger.info(f"📨 Message from {phone}: {text}")
-        
-        # ========== GET SESSION & PRODUCTS ==========
-        session = get_session(phone)
-        products = sheets.get_products()
-        
-        # ========== SHOP INFO QUERIES (HANDLE FIRST) ==========
-        shop_keywords = ['timing', 'time', 'open', 'close', 'location', 'address', 'where', 'delivery', 'deliver']
-        if any(keyword in text.lower() for keyword in shop_keywords):
-            reply = get_shop_info_response(text)
-            send_whatsapp_message(phone, reply)
-            return "EVENT_RECEIVED", 200
-        
-        # ========== AI EXTRACTION (intent + language) ==========
-        extracted = extract_structured_data(text, products)
-        ai_intent = extracted.get("intent", "other")
-        ai_language = extracted.get("language", "en")
-        lang = detect_language(text, ai_language)
-        session["language"] = lang
-        
-        # ========== CATALOG HANDLER ==========
-        if is_catalog_intent(text, ai_intent):
-            reply = handle_catalog(lang, products)
-            send_whatsapp_message(phone, reply)
-            return "EVENT_RECEIVED", 200
-        
-        # ========== 3-STATE MACHINE ==========
-        reply = ""
-        state = session["state"]
-        
-        # ----- STATE: IDLE -----
-        if state == "IDLE":
-            if is_greeting(text):
-                reply = handle_greeting(lang)
-            else:
-                # Check for multiple products in a single message
-                multi_products = detect_multiple_products(text, products)
-                if len(multi_products) >= 2:
-                    reply = get_template(lang, "multi_items")
-                    logger.info(f"⚠️ Multiple products detected: {multi_products} — asking customer to order one at a time")
+            import time
+            import hashlib
+            current_time = time.time()
+            
+            dedup_key = message_id if message_id else hashlib.md5(
+                f"{phone}:{int(current_time / 2)}".encode()
+            ).hexdigest()
+            
+            # Clean old entries
+            expired = [k for k, ts in processed_messages.items() if current_time - ts > MESSAGE_CACHE_DURATION]
+            for k in expired:
+                del processed_messages[k]
+            
+            if dedup_key in processed_messages:
+                logger.warning(f"⏭️ DUPLICATE message {dedup_key} - skipping")
+                return "EVENT_RECEIVED", 200
+            
+            processed_messages[dedup_key] = current_time
+            
+            # Only handle text messages
+            if "text" not in message:
+                send_whatsapp_message(phone, "Please send text messages for now. Image support coming soon!")
+                return "EVENT_RECEIVED", 200
+            
+            text = message["text"]["body"].strip()
+            logger.info(f"📨 Message from {phone}: {text}")
+            
+            # ========== GET SESSION & PRODUCTS ==========
+            session = get_session(phone)
+            products = sheets.get_products()
+            
+            # ========== SHOP INFO QUERIES (HANDLE FIRST) ==========
+            shop_keywords = ['timing', 'time', 'open', 'close', 'location', 'address', 'where', 'delivery', 'deliver']
+            if any(keyword in text.lower() for keyword in shop_keywords):
+                reply = get_shop_info_response(text)
+                send_whatsapp_message(phone, reply)
+                return "EVENT_RECEIVED", 200
+            
+            # ========== AI EXTRACTION (intent + language) ==========
+            extracted = extract_structured_data(text, products)
+            ai_intent = extracted.get("intent", "other")
+            ai_language = extracted.get("language", "en")
+            lang = detect_language(text, ai_language)
+            session["language"] = lang
+            
+            # ========== CATALOG HANDLER ==========
+            if is_catalog_intent(text, ai_intent):
+                reply = handle_catalog(lang, products)
+                send_whatsapp_message(phone, reply)
+                return "EVENT_RECEIVED", 200
+            
+            # ========== 3-STATE MACHINE ==========
+            reply = ""
+            state = session["state"]
+            
+            # ----- STATE: IDLE -----
+            if state == "IDLE":
+                if is_greeting(text):
+                    reply = handle_greeting(lang)
                 else:
-                    # Try to detect a product
-                    product, candidates = resolve_product(text, products)
-                
-                    # If resolve_product didn't find anything, try AI's product detection as fallback
-                    if not product and not candidates:
-                        ai_product_name = extracted.get("product_detected")
-                        if ai_product_name:
-                            # Handle AI returning list or comma-separated
-                            if isinstance(ai_product_name, list):
-                                ai_product_name = ai_product_name[0] if ai_product_name else None
-                            elif isinstance(ai_product_name, str) and "," in ai_product_name:
-                                ai_product_name = ai_product_name.split(",")[0].strip()
-                            
-                            if ai_product_name:
-                                # Try to find this product in our catalog
-                                product = next((p for p in products if p["Product_Name"].lower() == ai_product_name.lower()), None)
-                                if product:
-                                    logger.info(f"🤖 AI fallback matched: {product['Product_Name']}")
-                
-                    if product:
-                        # Single match → store in session, ask quantity
-                        session["product"] = product
-                        session["state"] = "WAITING_QUANTITY"
-                        
-                        # Create ACTIVE lead in LEADS_ACTIVE sheet
-                        lead_id = sheets.create_active_lead(phone, product)
-                        session["lead_id"] = lead_id
-                        
-                        unit, unit_plural = get_unit_info(product)
-                        reply = get_template(lang, "product_found").format(
-                            product_name=product["Product_Name"],
-                            price=product.get("Base_Price", ""),
-                            unit=unit,
-                            unit_plural=unit_plural
-                        )
-                        logger.info(f"✅ Product stored in session: {product['Product_Name']}, lead_id={lead_id}, state → WAITING_QUANTITY")
-                        
-                    elif candidates:
-                        # Multiple matches → ask clarification
-                        options = "\n".join([f"  {i+1}. {p['Product_Name']}" for i, p in enumerate(candidates)])
-                        reply = get_template(lang, "disambiguation").format(options=options)
-                        logger.info(f"🔢 Disambiguation: {len(candidates)} candidates shown")
-                        
+                    # Check for multiple products in a single message
+                    multi_products = detect_multiple_products(text, products)
+                    if len(multi_products) >= 2:
+                        reply = get_template(lang, "multi_items")
+                        logger.info(f"⚠️ Multiple products detected: {multi_products} — asking customer to order one at a time")
                     else:
-                        # Nothing found
-                        if ai_intent == "greeting":
-                            reply = handle_greeting(lang)
-                        else:
-                            reply = get_template(lang, "product_not_found")
-        
-        # ----- STATE: WAITING_QUANTITY -----
-        elif state == "WAITING_QUANTITY":
-            product = session["product"]
-            unit_type = product.get("Unit_Type", "PIECE").upper()
-            unit, unit_plural = get_unit_info(product)
-            
-            # Check for hard cancel (explicit 'cancel') first
-            if is_hard_cancel(text):
-                # Update ACTIVE lead to CANCELLED in LEADS_ACTIVE
-                if session.get("lead_id"):
-                    sheets.cancel_active_lead(session["lead_id"])
-                clear_session(phone)
-                reply = get_template(lang, "order_cancelled")
-            
-            # Check for soft cancel signals (no/wait/don't) → ask confirmation
-            elif is_soft_cancel(text, ai_intent):
-                qty_info = f", Quantity: {session.get('quantity')}" if session.get('quantity') else ""
-                unit, unit_plural = get_unit_info(product)
-                reply = get_template(lang, "cancel_confirm").format(
-                    product_name=product.get("Product_Name", ""),
-                    quantity_line=qty_info,
-                    unit=unit
-                )
-                logger.info(f"⚠️ Soft cancel detected, asking for confirmation")
-            
-            # Check if user wants a different product (restart)
-            elif ai_intent == "enquiry":
-                new_product, new_candidates = resolve_product(text, products)
-                if new_product and new_product.get("Product_Name") != product.get("Product_Name"):
-                    # User switched product
-                    session["product"] = new_product
-                    session["quantity"] = None
-                    session["total"] = None
-                    unit, unit_plural = get_unit_info(new_product)
-                    reply = get_template(lang, "product_found").format(
-                        product_name=new_product["Product_Name"],
-                        price=new_product.get("Base_Price", ""),
-                        unit=unit,
-                        unit_plural=unit_plural
-                    )
-                    logger.info(f"🔄 Product switched to: {new_product['Product_Name']}")
-                elif new_candidates:
-                    options = "\n".join([f"  {i+1}. {p['Product_Name']}" for i, p in enumerate(new_candidates)])
-                    reply = get_template(lang, "disambiguation").format(options=options)
-                else:
-                    # Try parsing as quantity anyway
-                    qty = extract_quantity(text, unit_type)
-                    if qty is not None and qty > 0:
-                        price = float(product.get("Base_Price", 0))
-                        total = round(price * qty, 2)
-                        
-                        session["quantity"] = qty
-                        session["total"] = total
-                        session["state"] = "WAITING_CONFIRMATION"
-                        
-                        # Update quantity in LEADS_ACTIVE
-                        if session.get("lead_id"):
-                            sheets.update_active_lead_quantity(session["lead_id"], qty, total)
-                        
-                        qty_display = format_quantity_with_unit(qty, unit_type)
-                        reply = get_template(lang, "quantity_confirm").format(
-                            quantity=qty_display.split()[0],
-                            unit=qty_display.split()[-1] if len(qty_display.split()) > 1 else unit,
-                            total=total
-                        )
-                        logger.info(f"✅ Quantity={qty}, Total=₹{total}, state → WAITING_CONFIRMATION")
-                    else:
-                        reply = get_template(lang, "already_waiting_qty").format(
-                            product_name=product["Product_Name"],
-                            price=product.get("Base_Price", ""),
-                            unit=unit,
-                            unit_plural=unit_plural
-                        )
-            else:
-                # First, try to resolve as a product name (user may want to switch products)
-                new_product, new_candidates = resolve_product(text, products)
-                
-                if new_product and new_product.get("Product_Name") != product.get("Product_Name"):
-                    # User switched to a different product
-                    session["product"] = new_product
-                    session["quantity"] = None
-                    session["total"] = None
-                    unit, unit_plural = get_unit_info(new_product)
+                        # Try to detect a product
+                        product, candidates = resolve_product(text, products)
                     
-                    # Update ACTIVE lead with new product
+                        # If resolve_product didn't find anything, try AI's product detection as fallback
+                        if not product and not candidates:
+                            ai_product_name = extracted.get("product_detected")
+                            if ai_product_name:
+                                # Handle AI returning list or comma-separated
+                                if isinstance(ai_product_name, list):
+                                    ai_product_name = ai_product_name[0] if ai_product_name else None
+                                elif isinstance(ai_product_name, str) and "," in ai_product_name:
+                                    ai_product_name = ai_product_name.split(",")[0].strip()
+                                
+                                if ai_product_name:
+                                    # Try to find this product in our catalog
+                                    product = next((p for p in products if p["Product_Name"].lower() == ai_product_name.lower()), None)
+                                    if product:
+                                        logger.info(f"🤖 AI fallback matched: {product['Product_Name']}")
+                    
+                        if product:
+                            # Single match → store in session, ask quantity
+                            session["product"] = product
+                            session["state"] = "WAITING_QUANTITY"
+                            
+                            # Create ACTIVE lead in LEADS_ACTIVE sheet
+                            lead_id = sheets.create_active_lead(phone, product)
+                            session["lead_id"] = lead_id
+                            
+                            unit, unit_plural = get_unit_info(product)
+                            reply = get_template(lang, "product_found").format(
+                                product_name=product["Product_Name"],
+                                price=product.get("Base_Price", ""),
+                                unit=unit,
+                                unit_plural=unit_plural
+                            )
+                            logger.info(f"✅ Product stored in session: {product['Product_Name']}, lead_id={lead_id}, state → WAITING_QUANTITY")
+                            
+                        elif candidates:
+                            # Multiple matches → ask clarification
+                            options = "\n".join([f"  {i+1}. {p['Product_Name']}" for i, p in enumerate(candidates)])
+                            reply = get_template(lang, "disambiguation").format(options=options)
+                            logger.info(f"🔢 Disambiguation: {len(candidates)} candidates shown")
+                            
+                        else:
+                            # Nothing found
+                            if ai_intent == "greeting":
+                                reply = handle_greeting(lang)
+                            else:
+                                reply = get_template(lang, "product_not_found")
+            
+            # ----- STATE: WAITING_QUANTITY -----
+            elif state == "WAITING_QUANTITY":
+                product = session["product"]
+                unit_type = product.get("Unit_Type", "PIECE").upper()
+                unit, unit_plural = get_unit_info(product)
+                
+                # Check for hard cancel (explicit 'cancel') first
+                if is_hard_cancel(text):
+                    # Update ACTIVE lead to CANCELLED in LEADS_ACTIVE
                     if session.get("lead_id"):
                         sheets.cancel_active_lead(session["lead_id"])
-                    lead_id = sheets.create_active_lead(phone, new_product)
-                    session["lead_id"] = lead_id
-                    
-                    reply = get_template(lang, "product_found").format(
-                        product_name=new_product["Product_Name"],
-                        price=new_product.get("Base_Price", ""),
-                        unit=unit,
-                        unit_plural=unit_plural
+                    clear_session(phone)
+                    reply = get_template(lang, "order_cancelled")
+                
+                # Check for soft cancel signals (no/wait/don't) → ask confirmation
+                elif is_soft_cancel(text, ai_intent):
+                    qty_info = f", Quantity: {session.get('quantity')}" if session.get('quantity') else ""
+                    unit, unit_plural = get_unit_info(product)
+                    reply = get_template(lang, "cancel_confirm").format(
+                        product_name=product.get("Product_Name", ""),
+                        quantity_line=qty_info,
+                        unit=unit
                     )
-                    logger.info(f"🔄 Product switched to: {new_product['Product_Name']}")
-                elif new_candidates:
-                    # Multiple matches — ask clarification
-                    options = "\n".join([f"  {i+1}. {p['Product_Name']}" for i, p in enumerate(new_candidates)])
-                    reply = get_template(lang, "disambiguation").format(options=options)
-                    logger.info(f"🔢 Disambiguation: {len(new_candidates)} candidates shown")
+                    logger.info(f"⚠️ Soft cancel detected, asking for confirmation")
+                
+                # Check if user wants a different product (restart)
+                elif ai_intent == "enquiry":
+                    new_product, new_candidates = resolve_product(text, products)
+                    if new_product and new_product.get("Product_Name") != product.get("Product_Name"):
+                        # User switched product
+                        session["product"] = new_product
+                        session["quantity"] = None
+                        session["total"] = None
+                        unit, unit_plural = get_unit_info(new_product)
+                        reply = get_template(lang, "product_found").format(
+                            product_name=new_product["Product_Name"],
+                            price=new_product.get("Base_Price", ""),
+                            unit=unit,
+                            unit_plural=unit_plural
+                        )
+                        logger.info(f"🔄 Product switched to: {new_product['Product_Name']}")
+                    elif new_candidates:
+                        options = "\n".join([f"  {i+1}. {p['Product_Name']}" for i, p in enumerate(new_candidates)])
+                        reply = get_template(lang, "disambiguation").format(options=options)
+                    else:
+                        # Try parsing as quantity anyway
+                        qty = extract_quantity(text, unit_type)
+                        if qty is not None and qty > 0:
+                            price = float(product.get("Base_Price", 0))
+                            total = round(price * qty, 2)
+                            
+                            session["quantity"] = qty
+                            session["total"] = total
+                            session["state"] = "WAITING_CONFIRMATION"
+                            
+                            # Update quantity in LEADS_ACTIVE
+                            if session.get("lead_id"):
+                                sheets.update_active_lead_quantity(session["lead_id"], qty, total)
+                            
+                            qty_display = format_quantity_with_unit(qty, unit_type)
+                            reply = get_template(lang, "quantity_confirm").format(
+                                quantity=qty_display.split()[0],
+                                unit=qty_display.split()[-1] if len(qty_display.split()) > 1 else unit,
+                                total=total
+                            )
+                            logger.info(f"✅ Quantity={qty}, Total=₹{total}, state → WAITING_CONFIRMATION")
+                        else:
+                            reply = get_template(lang, "already_waiting_qty").format(
+                                product_name=product["Product_Name"],
+                                price=product.get("Base_Price", ""),
+                                unit=unit,
+                                unit_plural=unit_plural
+                            )
                 else:
-                    # No product match — try to extract quantity
-                    qty = extract_quantity(text, unit_type)
+                    # First, try to resolve as a product name (user may want to switch products)
+                    new_product, new_candidates = resolve_product(text, products)
                     
-                    if qty is not None and qty > 0:
-                        price = float(product.get("Base_Price", 0))
-                        total = round(price * qty, 2)
+                    if new_product and new_product.get("Product_Name") != product.get("Product_Name"):
+                        # User switched to a different product
+                        session["product"] = new_product
+                        session["quantity"] = None
+                        session["total"] = None
+                        unit, unit_plural = get_unit_info(new_product)
                         
-                        session["quantity"] = qty
-                        session["total"] = total
-                        session["state"] = "WAITING_CONFIRMATION"
+                        # Update ACTIVE lead with new product
+                        if session.get("lead_id"):
+                            sheets.cancel_active_lead(session["lead_id"])
+                        lead_id = sheets.create_active_lead(phone, new_product)
+                        session["lead_id"] = lead_id
+                        
+                        reply = get_template(lang, "product_found").format(
+                            product_name=new_product["Product_Name"],
+                            price=new_product.get("Base_Price", ""),
+                            unit=unit,
+                            unit_plural=unit_plural
+                        )
+                        logger.info(f"🔄 Product switched to: {new_product['Product_Name']}")
+                    elif new_candidates:
+                        # Multiple matches — ask clarification
+                        options = "\n".join([f"  {i+1}. {p['Product_Name']}" for i, p in enumerate(new_candidates)])
+                        reply = get_template(lang, "disambiguation").format(options=options)
+                        logger.info(f"🔢 Disambiguation: {len(new_candidates)} candidates shown")
+                    else:
+                        # No product match — try to extract quantity
+                        qty = extract_quantity(text, unit_type)
+                        
+                        if qty is not None and qty > 0:
+                            price = float(product.get("Base_Price", 0))
+                            total = round(price * qty, 2)
+                            
+                            session["quantity"] = qty
+                            session["total"] = total
+                            session["state"] = "WAITING_CONFIRMATION"
+                            
+                            # Update quantity in LEADS_ACTIVE
+                            if session.get("lead_id"):
+                                sheets.update_active_lead_quantity(session["lead_id"], qty, total)
+                            
+                            qty_display = format_quantity_with_unit(qty, unit_type)
+                            reply = get_template(lang, "quantity_confirm").format(
+                                quantity=qty_display.split()[0],
+                                unit=qty_display.split()[-1] if len(qty_display.split()) > 1 else unit,
+                                total=total
+                            )
+                            logger.info(f"✅ Quantity={qty}, Total=₹{total}, state → WAITING_CONFIRMATION")
+                        else:
+                            reply = get_template(lang, "invalid_quantity")
+            
+            # ----- STATE: WAITING_CONFIRMATION -----
+            elif state == "WAITING_CONFIRMATION":
+                product = session["product"]
+                quantity = session["quantity"]
+                total = session["total"]
+                
+                if is_confirmation(text, ai_intent):
+                    # ✅ CREATE LEAD NOW (only at confirmation!)
+                    success = sheets.create_confirmed_lead(phone, product, quantity, total)
+                    
+                    if success:
+                        # Notify owner via Telegram
+                        notification_data = {
+                            "Customer_Name": "WhatsApp Customer",
+                            "Phone": phone,
+                            "Product_Name": product.get("Product_Name", ""),
+                            "Quantity_Asked": str(quantity),
+                            "Price_Shown": str(product.get("Base_Price", "")),
+                            "Status": "CONFIRMED"
+                        }
+                        notify_owner(notification_data)
+                        
+                        reply = get_template(lang, "order_confirmed")
+                        logger.info(f"✅ ORDER CONFIRMED: {product.get('Product_Name')} x{quantity} = ₹{total}")
+                    else:
+                        reply = "Sorry sir, there was an error processing the order. Please try again."
+                    
+                    # Clear session for next order
+                    clear_session(phone)
+                
+                elif is_hard_cancel(text):
+                    # Update ACTIVE lead to CANCELLED in LEADS_ACTIVE
+                    if session.get("lead_id"):
+                        sheets.cancel_active_lead(session["lead_id"])
+                    clear_session(phone)
+                    reply = get_template(lang, "order_cancelled")
+                    logger.info(f"❌ Order cancelled by customer")
+                
+                elif is_soft_cancel(text, ai_intent):
+                    qty_info = f", Quantity: {quantity}" if quantity else ""
+                    unit, unit_plural = get_unit_info(product)
+                    reply = get_template(lang, "cancel_confirm").format(
+                        product_name=product.get("Product_Name", ""),
+                        quantity_line=qty_info,
+                        unit=unit
+                    )
+                    logger.info(f"⚠️ Soft cancel detected in WAITING_CONFIRMATION, asking for confirmation")
+                
+                else:
+                    # User might want to change quantity
+                    unit_type = product.get("Unit_Type", "PIECE").upper()
+                    new_qty = extract_quantity(text, unit_type)
+                    
+                    if new_qty is not None and new_qty > 0:
+                        price = float(product.get("Base_Price", 0))
+                        new_total = round(price * new_qty, 2)
+                        
+                        session["quantity"] = new_qty
+                        session["total"] = new_total
                         
                         # Update quantity in LEADS_ACTIVE
                         if session.get("lead_id"):
-                            sheets.update_active_lead_quantity(session["lead_id"], qty, total)
+                            sheets.update_active_lead_quantity(session["lead_id"], new_qty, new_total)
                         
-                        qty_display = format_quantity_with_unit(qty, unit_type)
+                        unit, unit_plural = get_unit_info(product)
+                        qty_display = format_quantity_with_unit(new_qty, unit_type)
+                        reply = get_template(lang, "quantity_confirm").format(
+                            quantity=qty_display.split()[0],
+                            unit=qty_display.split()[-1] if len(qty_display.split()) > 1 else unit,
+                            total=new_total
+                        )
+                        logger.info(f"🔄 Quantity updated to {new_qty}, Total=₹{new_total}")
+                    else:
+                        # Re-show confirmation
+                        unit, unit_plural = get_unit_info(product)
+                        qty_display = format_quantity_with_unit(quantity, unit_type)
                         reply = get_template(lang, "quantity_confirm").format(
                             quantity=qty_display.split()[0],
                             unit=qty_display.split()[-1] if len(qty_display.split()) > 1 else unit,
                             total=total
                         )
-                        logger.info(f"✅ Quantity={qty}, Total=₹{total}, state → WAITING_CONFIRMATION")
-                    else:
-                        reply = get_template(lang, "invalid_quantity")
+            
+            # ========== SEND REPLY ==========
+            if reply:
+                send_whatsapp_message(phone, reply)
+            
+            return "EVENT_RECEIVED", 200
         
-        # ----- STATE: WAITING_CONFIRMATION -----
-        elif state == "WAITING_CONFIRMATION":
-            product = session["product"]
-            quantity = session["quantity"]
-            total = session["total"]
-            
-            if is_confirmation(text, ai_intent):
-                # ✅ CREATE LEAD NOW (only at confirmation!)
-                success = sheets.create_confirmed_lead(phone, product, quantity, total)
-                
-                if success:
-                    # Notify owner via Telegram
-                    notification_data = {
-                        "Customer_Name": "WhatsApp Customer",
-                        "Phone": phone,
-                        "Product_Name": product.get("Product_Name", ""),
-                        "Quantity_Asked": str(quantity),
-                        "Price_Shown": str(product.get("Base_Price", "")),
-                        "Status": "CONFIRMED"
-                    }
-                    notify_owner(notification_data)
-                    
-                    reply = get_template(lang, "order_confirmed")
-                    logger.info(f"✅ ORDER CONFIRMED: {product.get('Product_Name')} x{quantity} = ₹{total}")
-                else:
-                    reply = "Sorry sir, there was an error processing the order. Please try again."
-                
-                # Clear session for next order
-                clear_session(phone)
-            
-            elif is_hard_cancel(text):
-                # Update ACTIVE lead to CANCELLED in LEADS_ACTIVE
-                if session.get("lead_id"):
-                    sheets.cancel_active_lead(session["lead_id"])
-                clear_session(phone)
-                reply = get_template(lang, "order_cancelled")
-                logger.info(f"❌ Order cancelled by customer")
-            
-            elif is_soft_cancel(text, ai_intent):
-                qty_info = f", Quantity: {quantity}" if quantity else ""
-                unit, unit_plural = get_unit_info(product)
-                reply = get_template(lang, "cancel_confirm").format(
-                    product_name=product.get("Product_Name", ""),
-                    quantity_line=qty_info,
-                    unit=unit
-                )
-                logger.info(f"⚠️ Soft cancel detected in WAITING_CONFIRMATION, asking for confirmation")
-            
-            else:
-                # User might want to change quantity
-                unit_type = product.get("Unit_Type", "PIECE").upper()
-                new_qty = extract_quantity(text, unit_type)
-                
-                if new_qty is not None and new_qty > 0:
-                    price = float(product.get("Base_Price", 0))
-                    new_total = round(price * new_qty, 2)
-                    
-                    session["quantity"] = new_qty
-                    session["total"] = new_total
-                    
-                    # Update quantity in LEADS_ACTIVE
-                    if session.get("lead_id"):
-                        sheets.update_active_lead_quantity(session["lead_id"], new_qty, new_total)
-                    
-                    unit, unit_plural = get_unit_info(product)
-                    qty_display = format_quantity_with_unit(new_qty, unit_type)
-                    reply = get_template(lang, "quantity_confirm").format(
-                        quantity=qty_display.split()[0],
-                        unit=qty_display.split()[-1] if len(qty_display.split()) > 1 else unit,
-                        total=new_total
-                    )
-                    logger.info(f"🔄 Quantity updated to {new_qty}, Total=₹{new_total}")
-                else:
-                    # Re-show confirmation
-                    unit, unit_plural = get_unit_info(product)
-                    qty_display = format_quantity_with_unit(quantity, unit_type)
-                    reply = get_template(lang, "quantity_confirm").format(
-                        quantity=qty_display.split()[0],
-                        unit=qty_display.split()[-1] if len(qty_display.split()) > 1 else unit,
-                        total=total
-                    )
-        
-        # ========== SEND REPLY ==========
-        if reply:
-            send_whatsapp_message(phone, reply)
-        
-        return "EVENT_RECEIVED", 200
-    
-    except Exception as e:
-        logger.error(f"❌ Error processing webhook: {e}", exc_info=True)
-        return "EVENT_RECEIVED", 200
+        except Exception as e:
+            logger.error(f"❌ Error processing webhook: {e}", exc_info=True)
+            return "EVENT_RECEIVED", 200
 
 
 @app.route("/ping", methods=["GET"])
